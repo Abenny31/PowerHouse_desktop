@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<configuration>
+  <appSettings>
+    <!-- REQUIRED: SQL Server connection string -->
+    <!-- Replace with your actual database connection details -->
+    <add key="ConnStringDB" value="Server=localhost;Database=PowerHouseDB;Integrated Security=true;" />
+    
+    <!-- OPTIONAL: Custom path to PowerHouse_desktop.exe -->
+    <!-- Supports environment variables like %USERPROFILE%, %PROGRAMFILES%, etc. -->
+    <!-- If not specified, the application will search in default locations -->
+    <!-- <add key="DesktopAppPath" value="%USERPROFILE%\Apps\PowerHouse_desktop.exe" /> -->
+    
+    <!-- OPTIONAL: Prevent launching multiple instances of the desktop app -->
+    <!-- Default: true -->
+    <!-- Set to false to allow multiple instances -->
+    <!-- <add key="PreventMultipleInstances" value="true" /> -->
+  </appSettings>
+</configuration>

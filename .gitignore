@@ -1,0 +1,23 @@
+# Visual Studio files
+.vs/
+
+# Build outputs - all projects
+**/bin/
+**/obj/
+
+# App configuration (contains sensitive data)
+App.config
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Installer outputs
+*.msi
+*.msm
+*.msp
+
+# Logs
+*.log
