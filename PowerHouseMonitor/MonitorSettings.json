@@ -1,0 +1,5 @@
+{
+  "DesktopAppPath": "%PROGRAMFILES%\\PowerHouse\\PowerHouse_desktop\\PowerHouse_desktop.exe",
+  "PreventMultipleInstances": true,
+  "LogDirectory": "%PROGRAMDATA%\\PowerHouse\\Logs"
+}

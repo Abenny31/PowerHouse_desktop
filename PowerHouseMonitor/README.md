@@ -54,6 +54,25 @@ Create an `App.config` file in the application directory with the following stru
 | `ConnStringDB` | **Yes** | N/A | SQL Server connection string |
 | `DesktopAppPath` | No | Auto-detect | Full path to PowerHouse_desktop.exe. Supports environment variables. |
 | `PreventMultipleInstances` | No | `true` | If `true`, won't launch if desktop app is already running |
+| `LogDirectory` | No | App folder | Directory where daily `logYYYYMMDD.txt` files are stored |
+
+### MonitorSettings.json
+
+`MonitorSettings.json` lives next to `PowerHouseMonitor.exe` (it is copied automatically during publish) and lets you override desktop-app settings without recompiling.
+
+```json
+{
+  "DesktopAppPath": "%PROGRAMFILES%\\PowerHouse\\PowerHouse_desktop\\PowerHouse_desktop.exe",
+  "PreventMultipleInstances": true,
+  "LogDirectory": "%PROGRAMDATA%\\PowerHouse\\Logs"
+}
+```
+
+- `DesktopAppPath` supports absolute paths, relative paths, and environment variables (e.g., `%PROGRAMFILES%`, `%ProgramFiles(x86)%`, `%USERPROFILE%`).  
+- `PreventMultipleInstances` overrides the App.config value when present.
+- `LogDirectory` controls where monitor log files are written; defaults to the executable directory if omitted.
+
+If a key is missing in `MonitorSettings.json`, the application falls back to `App.config` and then to the built-in defaults.
 
 ### Database Requirements
 
@@ -72,6 +91,8 @@ SELECT COUNT(*) FROM formDataDbSet WHERE IsRead = 0
 ```bash
 PowerHouseMonitor.exe
 ```
+
+- Every console message is also appended to the current day's log file located under `LogDirectory` (or beside the executable if not set). File names follow `logYYYYMMDD.txt`.
 
 ### Exit Codes
 
@@ -101,10 +122,11 @@ PowerHouseMonitor.exe
 
 The application searches for `PowerHouse_desktop.exe` in the following order:
 
-1. **Configured Path**: Value from `DesktopAppPath` in App.config
-2. **Relative Release Build**: `../PowerHouse_desktop/bin/Release/net6.0-windows8.0/PowerHouse_desktop.exe`
-3. **Relative Debug Build**: `../PowerHouse_desktop/bin/Debug/net6.0-windows8.0/PowerHouse_desktop.exe`
-4. **Current Directory**: `PowerHouse_desktop.exe`
+1. **JSON Override**: `DesktopAppPath` from `MonitorSettings.json`
+2. **App.config Path**: Value from `DesktopAppPath` in App.config
+3. **Relative Release Build**: `../PowerHouse_desktop/bin/Release/net6.0-windows8.0/PowerHouse_desktop.exe`
+4. **Relative Debug Build**: `../PowerHouse_desktop/bin/Debug/net6.0-windows8.0/PowerHouse_desktop.exe`
+5. **Current Directory**: `PowerHouse_desktop.exe`
 
 All paths support:
 - Environment variables (e.g., `%PROGRAMFILES%`, `%USERPROFILE%`)

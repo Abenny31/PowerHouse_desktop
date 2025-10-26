@@ -49,7 +49,10 @@ dotnet build
 Both applications require configuration:
 
 1. **PowerHouse_desktop**: Configure database connection in application settings
-2. **PowerHouseMonitor**: Copy `App.config.example` to `App.config` and update connection string
+2. **PowerHouseMonitor**:
+   - Copy `App.config.example` to `App.config` and update the `ConnStringDB` entry
+   - Set the desktop application path inside `PowerHouseMonitor/MonitorSettings.json`. This file ships with the monitor executable, so clients can edit it after installation to point at their local `PowerHouse_desktop.exe`.
+   - Configure `LogDirectory` (either in App.config or MonitorSettings.json) if you want monitor logs written to a specific folder; otherwise logs stay beside the executable.
 
 See individual project READMEs for detailed configuration instructions.
 

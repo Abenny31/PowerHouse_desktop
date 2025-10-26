@@ -4,6 +4,7 @@ using System.Data.SqlClient;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace PowerHouseMonitor
 {
@@ -20,9 +21,12 @@ namespace PowerHouseMonitor
             Path.Combine(AppContext.BaseDirectory, "PowerHouse_desktop.exe")
         };
 
+        private const string JsonSettingsFileName = "MonitorSettings.json";
         private const string DesktopAppPathKey = "DesktopAppPath";
         private const string ConnectionStringKey = "ConnStringDB";
         private const string PreventMultipleInstancesKey = "PreventMultipleInstances";
+        private const string LogDirectoryKey = "LogDirectory";
+        private static string _logDirectory = AppContext.BaseDirectory;
 
         /// <summary>
         /// Main entry point for the PowerHouseMonitor application.
@@ -38,35 +42,36 @@ namespace PowerHouseMonitor
         {
             try
             {
+                var monitorSettings = LoadMonitorSettings();
+                _logDirectory = ResolveLogDirectory(monitorSettings);
                 var connectionString = GetConnectionString();
                 var unreadCount = GetUnreadCount(connectionString);
 
                 if (unreadCount <= 0)
                 {
-                    Console.WriteLine($"{DateTime.UtcNow:u} No unread submissions. Exiting.");
+                    LogInfo("No unread submissions. Exiting.");
                     return 0;
                 }
 
-                Console.WriteLine($"{DateTime.UtcNow:u} Detected {unreadCount} unread submission(s).");
+                LogInfo($"Detected {unreadCount} unread submission(s).");
 
-                var desktopAppPath = ResolveDesktopAppPath();
-                var preventMultipleInstances = ShouldPreventMultipleInstances();
+                var desktopAppPath = ResolveDesktopAppPath(monitorSettings);
+                var preventMultipleInstances = ShouldPreventMultipleInstances(monitorSettings);
 
                 if (preventMultipleInstances && IsDesktopAppRunning(desktopAppPath))
                 {
-                    Console.WriteLine($"{DateTime.UtcNow:u} Desktop app already running. Skipping launch.");
+                    LogInfo("Desktop app already running. Skipping launch.");
                     return 0;
                 }
 
                 LaunchDesktopApp(desktopAppPath);
-                Console.WriteLine($"{DateTime.UtcNow:u} Launch command issued for '{desktopAppPath}'.");
+                LogInfo($"Launch command issued for '{desktopAppPath}'.");
 
                 return 1;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"{DateTime.UtcNow:u} ERROR: {ex.Message}");
-                Console.Error.WriteLine(ex);
+                LogError($"ERROR: {ex.Message}", ex);
                 return 2;
             }
         }
@@ -113,8 +118,19 @@ namespace PowerHouseMonitor
         /// </summary>
         /// <returns>The full path to PowerHouse_desktop.exe.</returns>
         /// <exception cref="FileNotFoundException">Thrown when the desktop application cannot be located.</exception>
-        private static string ResolveDesktopAppPath()
+        private static string ResolveDesktopAppPath(MonitorSettings monitorSettings)
         {
+            if (!string.IsNullOrWhiteSpace(monitorSettings.DesktopAppPath))
+            {
+                var configuredFromJson = ResolvePath(monitorSettings.DesktopAppPath);
+                if (File.Exists(configuredFromJson))
+                {
+                    return configuredFromJson;
+                }
+
+                LogInfo($"DesktopAppPath from {JsonSettingsFileName} not found: {configuredFromJson}");
+            }
+
             var configuredPath = ConfigurationManager.AppSettings[DesktopAppPathKey];
             if (!string.IsNullOrWhiteSpace(configuredPath))
             {
@@ -124,7 +140,7 @@ namespace PowerHouseMonitor
                     return resolved;
                 }
 
-                Console.WriteLine($"{DateTime.UtcNow:u} Configured desktop app path not found: {resolved}");
+                LogInfo($"Configured desktop app path not found: {resolved}");
             }
 
             foreach (var candidate in DefaultDesktopAppPaths.Select(ResolvePath))
@@ -159,8 +175,13 @@ namespace PowerHouseMonitor
         /// Determines whether multiple instances of the desktop app should be prevented.
         /// </summary>
         /// <returns>True if multiple instances should be prevented (default), false otherwise.</returns>
-        private static bool ShouldPreventMultipleInstances()
+        private static bool ShouldPreventMultipleInstances(MonitorSettings monitorSettings)
         {
+            if (monitorSettings.PreventMultipleInstances.HasValue)
+            {
+                return monitorSettings.PreventMultipleInstances.Value;
+            }
+
             var setting = ConfigurationManager.AppSettings[PreventMultipleInstancesKey];
             return string.IsNullOrWhiteSpace(setting) || bool.TryParse(setting, out var result) && result;
         }
@@ -179,7 +200,7 @@ namespace PowerHouseMonitor
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"{DateTime.UtcNow:u} Unable to check running processes: {ex.Message}");
+                LogError($"Unable to check running processes: {ex.Message}", ex);
                 return false;
             }
         }
@@ -198,6 +219,93 @@ namespace PowerHouseMonitor
             };
 
             Process.Start(startInfo);
+        }
+
+        /// <summary>
+        /// Loads optional monitor settings from MonitorSettings.json located alongside the executable.
+        /// </summary>
+        private static MonitorSettings LoadMonitorSettings()
+        {
+            var settingsPath = Path.Combine(AppContext.BaseDirectory, JsonSettingsFileName);
+            if (!File.Exists(settingsPath))
+            {
+                return MonitorSettings.Empty;
+            }
+
+            try
+            {
+                var json = File.ReadAllText(settingsPath);
+                var settings = JsonSerializer.Deserialize<MonitorSettings>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                });
+
+                return settings ?? MonitorSettings.Empty;
+            }
+            catch (Exception ex)
+            {
+                LogError($"Unable to read {JsonSettingsFileName}: {ex.Message}", ex);
+                return MonitorSettings.Empty;
+            }
+        }
+
+        private static string ResolveLogDirectory(MonitorSettings monitorSettings)
+        {
+            var configured = monitorSettings.LogDirectory;
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                return ResolvePath(configured);
+            }
+
+            var fromConfig = ConfigurationManager.AppSettings[LogDirectoryKey];
+            if (!string.IsNullOrWhiteSpace(fromConfig))
+            {
+                return ResolvePath(fromConfig);
+            }
+
+            return AppContext.BaseDirectory;
+        }
+
+        private static void LogInfo(string message) => LogInternal(message, isError: false);
+
+        private static void LogError(string message, Exception? ex = null)
+        {
+            var combined = ex is null ? message : $"{message}{Environment.NewLine}{ex}";
+            LogInternal(combined, isError: true);
+        }
+
+        private static void LogInternal(string message, bool isError)
+        {
+            var timestamp = DateTime.UtcNow;
+            var formatted = $"{timestamp:u}, {message}";
+
+            try
+            {
+                Directory.CreateDirectory(_logDirectory);
+                var fileName = $"log{timestamp:yyyyMMdd}.txt";
+                var fullPath = Path.Combine(_logDirectory, fileName);
+                File.AppendAllText(fullPath, formatted + Environment.NewLine);
+            }
+            catch
+            {
+                // Avoid throwing from logging; fall back silently.
+            }
+
+            if (isError)
+            {
+                Console.Error.WriteLine(formatted);
+            }
+            else
+            {
+                Console.WriteLine(formatted);
+            }
+        }
+
+        private sealed record MonitorSettings(string? DesktopAppPath, bool? PreventMultipleInstances, string? LogDirectory)
+        {
+            public static MonitorSettings Empty { get; } = new(null, null, null);
         }
     }
 }

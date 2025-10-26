@@ -14,5 +14,9 @@
     <!-- Default: true -->
     <!-- Set to false to allow multiple instances -->
     <!-- <add key="PreventMultipleInstances" value="true" /> -->
+
+    <!-- OPTIONAL: Folder where monitor writes logYYYYMMDD.txt files -->
+    <!-- Defaults to the application's directory if omitted -->
+    <!-- <add key="LogDirectory" value="%PROGRAMDATA%\PowerHouse\Logs" /> -->
   </appSettings>
 </configuration>
